@@ -14,8 +14,8 @@ ALI_TRACKING_ID = os.environ.get("ALI_TRACKING_ID", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
 def get_massive_keyword_list():
-    modifiers = ["Best Budget", "Top Rated", "High Quality", "Portable", "Wireless", "Gaming", "Smart", "Gift"]
-    products = ["Mechanical Keyboard", "Gaming Mouse", "Power Bank", "USB Hub", "GaN Charger", "Smart Watch", "Mini PC", "Projector", "Robot Vacuum", "Camping Lantern"]
+    modifiers = ["Best", "Top", "Portable", "Wireless", "Gaming", "Smart", "Gift", "Trending"]
+    products = ["Keyboard", "Mouse", "Power Bank", "USB Hub", "Charger", "Smart Watch", "Projector", "Vacuum", "Lantern"]
     return [f"{m} {p}" for m in modifiers for p in products]
 
 def get_ali_products(keyword):
@@ -35,70 +35,63 @@ def get_ali_products(keyword):
     except: return []
 
 def generate_blog_content(product):
-    # 🚀 지난 로그에서 성공이 확인된 제미나이 3.0 모델을 1순위로 배치합니다.
-    # 제미나이 3.0은 추론 능력이 뛰어나 마케팅 문구 작성에 최적입니다.
+    # 🚀 사용자님 리스트에서 확인된 모델 중 가장 성공 가능성이 높은 순서입니다.
+    # 제미나이 3.0은 추론 능력이 뛰어나 리뷰의 질이 훨씬 높습니다.
     candidates = [
-        "models/gemini-3-flash-preview", 
-        "models/gemini-1.5-flash-latest",
-        "models/gemini-pro-latest"
+        "models/gemini-3-flash-preview", # 1순위: 지난번 성공 모델
+        "models/gemini-2.0-flash",       # 2순위: 최신 플래시 모델
+        "models/gemini-flash-latest"     # 3순위: 안정적인 최신 버전
     ]
     
     headers = {'Content-Type': 'application/json'}
-    # 제미나이 3.0의 에이전트 능력을 자극하는 고급 프롬프트
-    prompt_text = (f"Review this product using Gemini 3.0 reasoning: {product.get('product_title')}. "
-                   f"Price: ${product.get('target_sale_price')}. Write an expert-level review in Markdown.")
+    prompt_text = (f"Review this product with Gemini 3.0 Reasoning: {product.get('product_title')}. "
+                   f"Price: ${product.get('target_sale_price')}. Write in expert English Markdown.")
     payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
     
     for model_name in candidates:
         try:
             url = f"https://generativelanguage.googleapis.com/v1beta/{model_name}:generateContent?key={GEMINI_API_KEY}"
-            response = requests.post(url, headers=headers, json=payload, timeout=20)
+            # ⏳ 타임아웃을 60초로 늘려 서버 지연 에러를 방지합니다.
+            response = requests.post(url, headers=headers, json=payload, timeout=60)
             result = response.json()
             
             if "candidates" in result:
                 print(f"✅ Success using model: {model_name}")
                 return result["candidates"][0]["content"]["parts"][0]["text"]
             
-            # 429 에러 발생 시 상세 이유 출력
-            error_msg = result.get('error', {}).get('message', 'Unknown error')
-            print(f"ℹ️ Model {model_name} skipped: {error_msg}")
-            
-            # 할당량 초과 시 잠시 대기 (구글 권장 사항)
-            if "quota" in error_msg.lower():
-                print("Waiting 10 seconds due to quota...")
-                time.sleep(10)
-                
+            print(f"ℹ️ Model {model_name} skipped: {result.get('error', {}).get('message', 'Unknown error')}")
+        except requests.exceptions.Timeout:
+            print(f"⚠️ Timeout occurred with {model_name}, trying next model...")
+            continue
         except Exception as e:
-            print(f"ℹ️ Connection error with {model_name}: {e}")
+            print(f"ℹ️ Error with {model_name}: {e}")
             continue
     return None
 
 def main():
-    # 📂 웹사이트 대문에 목록이 뜨도록 반드시 '_posts' 폴더를 사용합니다.
+    # 📂 Jekyll 웹사이트 연동을 위해 반드시 '_posts' 폴더를 사용합니다.
     os.makedirs("_posts", exist_ok=True)
     if not os.path.exists("posted_ids.txt"):
         with open("posted_ids.txt", "w") as f: f.write("")
 
     all_keywords = get_massive_keyword_list()
     target = random.choice(all_keywords)
-    print(f"🎯 Selected Target: {target}")
+    print(f"🎯 Target: {target}")
 
     products = get_ali_products(target)
     if not products:
-        print("❌ No products found from AliExpress.")
+        print("❌ No products found.")
         return
 
     selected_product = products[0]
-    print(f"📝 Writing Review with Gemini 3.0: {selected_product['product_title'][:40]}...")
-    
+    print(f"📝 Writing Review: {selected_product['product_title'][:40]}...")
     content = generate_blog_content(selected_product)
     
     if content:
         today = datetime.now().strftime("%Y-%m-%d")
-        # Jekyll 규격 파일명: YYYY-MM-DD-제목.md
+        # 📝 Jekyll 규격 파일명 (목록 표시를 위해 중요)
         file_path = f"_posts/{today}-{selected_product.get('product_id')}.md"
         with open(file_path, "w", encoding="utf-8") as f:
-            # 제목과 날짜를 포함한 헤더(Front Matter) 추가
             f.write(f"---\ntitle: \"{selected_product['product_title']}\"\ndate: {today}\n---\n\n{content}")
         
         with open("posted_ids.txt", "a") as f:
