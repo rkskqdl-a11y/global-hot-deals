@@ -14,8 +14,8 @@ ALI_TRACKING_ID = os.environ.get("ALI_TRACKING_ID", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
 def get_massive_keyword_list():
-    modifiers = ["Best Budget", "Top Rated", "High Quality", "Portable", "Wireless", "Gaming", "RGB", "Mechanical", "Waterproof", "Smart", "Minimalist", "Professional", "Gift for Him", "Gift for Her", "Trending", "Xiaomi", "Anker Style", "Must Have"]
-    products = ["Mechanical Keyboard", "Gaming Mouse", "Power Bank", "USB Hub", "GaN Charger", "Monitor Light Bar", "Tablet Stand", "Laptop Stand", "Bluetooth Speaker", "TWS Earbuds", "Smart Watch", "NVMe SSD Enclosure", "Mini PC", "Portable Projector", "Robot Vacuum", "Electric Toothbrush", "Smart Scale", "Portable Monitor", "Action Camera", "Dash Cam", "Car Vacuum", "Camping Lantern", "Survival Kit", "Multitool", "Pocket Knife"]
+    modifiers = ["Best Budget", "Top Rated", "High Quality", "Portable", "Wireless", "Gaming", "Waterproof", "Smart", "Gift for Him", "Trending", "Must Have"]
+    products = ["Mechanical Keyboard", "Gaming Mouse", "Power Bank", "USB Hub", "GaN Charger", "Smart Watch", "Mini PC", "Portable Projector", "Robot Vacuum", "Camping Lantern", "Pocket Knife"]
     return [f"{m} {p}" for m in modifiers for p in products]
 
 def get_ali_products(keyword):
@@ -35,29 +35,38 @@ def get_ali_products(keyword):
     except: return []
 
 def generate_blog_content(product):
-    # 🚀 429 에러 해결을 위해 가장 안정적인 'gemini-1.5-flash' 모델로 변경
-    # 이 모델은 무료 티어에서도 분당 15회 요청을 안정적으로 제공합니다.
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    # 🚀 제미나이 3.0 지능을 활용하기 위한 다중 경로 시도
+    # v1(정식) 경로를 우선 시도하여 404 에러를 방지합니다.
+    endpoints = [
+        "https://generativelanguage.googleapis.com/v1/models/gemini-3.0-flash:generateContent",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent",
+        "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
+    ]
+    
     headers = {'Content-Type': 'application/json'}
-    prompt_text = f"Review this product in professional English: {product.get('product_title')}. Price: ${product.get('target_sale_price')}. In Markdown."
+    # 제미나이 3.0의 Thinking 능력을 자극하는 프롬프트
+    prompt_text = (f"Review this product using your Gemini 3.0 advanced reasoning: {product.get('product_title')}. "
+                   f"Price: ${product.get('target_sale_price')}. "
+                   f"Write a persuasive, SEO-friendly English review in Markdown.")
+    
     payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
     
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        result = response.json()
-        
-        if "candidates" in result:
-            return result["candidates"][0]["content"]["parts"][0]["text"]
-        
-        # 할당량 초과(429) 에러 처리
-        if result.get("error", {}).get("code") == 429:
-            print("⚠️ API 할당량 초과: 무료 티어 제한에 걸렸습니다. 잠시 후 다시 시도하거나 모델 설정을 확인하세요.")
-        else:
-            print(f"DEBUG: Gemini API Error: {result.get('error', {}).get('message')}")
-        return None
-    except Exception as e:
-        print(f"DEBUG: Gemini Exception: {e}")
-        return None
+    for url in endpoints:
+        try:
+            full_url = f"{url}?key={GEMINI_API_KEY}"
+            response = requests.post(full_url, headers=headers, json=payload, timeout=10)
+            result = response.json()
+            
+            if "candidates" in result:
+                print(f"✅ Success using endpoint: {url}")
+                return result["candidates"][0]["content"]["parts"][0]["text"]
+            
+            print(f"ℹ️ Endpoint {url} skipped: {result.get('error', {}).get('message', 'Unknown error')}")
+        except Exception as e:
+            print(f"ℹ️ Connection to {url} failed: {e}")
+            continue
+            
+    return None
 
 def main():
     os.makedirs("posts", exist_ok=True)
@@ -74,12 +83,11 @@ def main():
         return
 
     selected_product = products[0]
-    print(f"📝 Writing Review: {selected_product['product_title'][:40]}...")
+    print(f"📝 Writing Review with Gemini 3.0 Intelligence: {selected_product['product_title'][:40]}...")
     content = generate_blog_content(selected_product)
     
     if content:
         today = datetime.now().strftime("%Y-%m-%d")
-        # 파일명에 날짜와 상품 ID를 조합해 중복 방지
         file_path = f"posts/{today}-{selected_product.get('product_id')}.md"
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
@@ -87,7 +95,7 @@ def main():
             f.write(f"{selected_product.get('product_id')}\n")
         print(f"🎉 SUCCESS: {file_path} created!")
     else:
-        print("❌ Content generation failed. Skip saving file.")
+        print("❌ Content generation failed across all endpoints.")
 
 if __name__ == "__main__":
     main()
