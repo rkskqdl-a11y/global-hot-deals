@@ -31,6 +31,7 @@ jobs:
     - name: 5. Run Ali Bot
       env:
         ALI_APP_KEY: ${{ secrets.ALI_APP_KEY }}
+        # 👇 여기가 제일 중요합니다! (왼쪽은 파이썬이 찾는 이름, 오른쪽은 깃허브에 저장된 이름)
         ALI_SECRET: ${{ secrets.ALI_APP_SECRET }}
         ALI_TRACKING_ID: ${{ secrets.ALI_TRACKING_ID }}
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
