@@ -10,24 +10,22 @@ warnings.filterwarnings("ignore")
 import google.generativeai as genai
 from datetime import datetime
 
-# 1. 환경 변수 로드 (공백 제거 기능 추가 .strip())
+# 1. 환경 변수 로드 (공백 제거 기능 포함)
 ALI_APP_KEY = os.environ.get("ALI_APP_KEY", "").strip()
 ALI_SECRET = os.environ.get("ALI_SECRET", "").strip()
 ALI_TRACKING_ID = os.environ.get("ALI_TRACKING_ID", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
-# 비밀키 길이 재확인
+# 비밀키 검증
 if ALI_SECRET:
     print(f"✅ 비밀키 로드 성공 (공백 제거 후 길이: {len(ALI_SECRET)})")
-    # 32자가 아니면 경고
-    if len(ALI_SECRET) != 32:
-        print("⚠️ 주의: App Secret 길이가 32자가 아닙니다. Secret 값을 다시 확인해보는 것이 좋습니다.")
 else:
     print("❌ 오류: ALI_SECRET이 비어있습니다.")
 
-# 2. Gemini 설정
+# 2. Gemini 설정 (최신 모델로 변경)
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+# 👇 여기가 수정된 부분입니다 (gemini-pro -> gemini-1.5-flash)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 def get_ali_products(keyword):
     url = "https://api-sg.aliexpress.com/sync"
@@ -64,7 +62,6 @@ def get_ali_products(keyword):
         # 에러 체크
         if "error_response" in data:
             print(f"🚫 API 호출 실패: {data['error_response'].get('msg')}")
-            # 에러 발생 시 fallback으로 한 번 더 시도 (다른 서명 방식)
             return []
 
         if "aliexpress_affiliate_product_query_response" in data:
