@@ -2,50 +2,52 @@ name: Daily Ali Post Bot (Gemini 3.0)
 
 on:
   schedule:
-    - cron: '0 0 * * *' # 매일 오전 9시 실행
-  workflow_dispatch: 
+    - cron: '0 0 * * *' # 매일 오전 9시(KST) 실행
+  workflow_dispatch: # 수동 실행 버튼 활성화
 
 permissions:
-  contents: write
+  contents: write # 파일 쓰기 권한 부여
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 1. 코드 가져오기
-      uses: actions/checkout@v3
+      - name: 1. 코드 가져오기
+        uses: actions/checkout@v3
 
-    - name: 2. 파이썬 설정
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
+      - name: 2. 파이썬 설정
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
 
-    - name: 3. 필수 라이브러리 설치
-      run: |
-        pip install requests
+      - name: 3. 필수 라이브러리 설치
+        run: |
+          pip install requests
 
-    - name: 4. 알리 봇 실행 (Gemini 3.0 활용)
-      env:
-        ALI_APP_KEY: ${{ secrets.ALI_APP_KEY }}
-        ALI_SECRET: ${{ secrets.ALI_APP_SECRET }}
-        ALI_TRACKING_ID: ${{ secrets.ALI_TRACKING_ID }}
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      run: python main.py
+      - name: 4. 알리 봇 실행 (Gemini 3.0 활용)
+        env:
+          ALI_APP_KEY: ${{ secrets.ALI_APP_KEY }}
+          ALI_SECRET: ${{ secrets.ALI_APP_SECRET }}
+          ALI_TRACKING_ID: ${{ secrets.ALI_TRACKING_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python main.py
 
-     - name: 5. 결과 저장 및 푸시
-      run: |
-        git config --global user.name "AliBot"
-        git config --global user.email "alibot@noreply.github.com"
-        
-        # ✅ 'posts'가 아니라 '_posts' 폴더를 추가하도록 수정
-        if [ -d "_posts" ]; then
-          git add _posts/
-        fi
-        
-        if [ -f "posted_ids.txt" ]; then
-          git add posted_ids.txt
-        fi
-        
-        git commit -m "New Post by Gemini 3.0" || echo "No changes to commit"
-        git push
+      - name: 5. 결과 저장 및 푸시
+        run: |
+          git config --global user.name "AliBot"
+          git config --global user.email "alibot@noreply.github.com"
+          
+          # _posts 폴더가 있을 때만 add 실행 (웹사이트 목록 표시용)
+          if [ -d "_posts" ]; then
+            git add _posts/
+          fi
+          
+          # 장부 파일 add
+          if [ -f "posted_ids.txt" ]; then
+            git add posted_ids.txt
+          fi
+          
+          # 변경 사항이 있을 때만 커밋
+          git commit -m "New Post by Gemini 3.0 Intelligence" || echo "No changes to commit"
+          git push
