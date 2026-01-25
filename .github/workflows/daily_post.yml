@@ -25,13 +25,13 @@ jobs:
         run: |
           pip install requests
 
-      - name: 4. 알리 봇 실행 (Gemini 3.0 활용)
+      - name: 4. 알리 봇 실행 (40개 업로드)
         env:
           ALI_APP_KEY: ${{ secrets.ALI_APP_KEY }}
           ALI_SECRET: ${{ secrets.ALI_APP_SECRET }}
           ALI_TRACKING_ID: ${{ secrets.ALI_TRACKING_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python main.py
+        run: python main.py # 40개 포스팅 루프 실행
 
       - name: 5. 결과 저장 및 푸시
         run: |
