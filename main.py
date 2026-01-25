@@ -34,68 +34,85 @@ def get_ali_products(keyword):
         return response.json().get("aliexpress_affiliate_product_query_response", {}).get("resp_result", {}).get("result", {}).get("products", {}).get("product", [])
     except: return []
 
-def generate_blog_content(product):
-    # 🚀 제미나이 3.0 지능을 활용하기 위한 다중 경로 시도
-    # v1(정식) 경로를 우선 시도하여 404 에러를 방지합니다.
-    endpoints = [
-        "https://generativelanguage.googleapis.com/v1/models/gemini-3.0-flash:generateContent",
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.0-flash:generateContent",
-        "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
+def list_available_models():
+    """사용 가능한 모델 목록을 출력하여 이름표 에러를 해결합니다."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models?key={GEMINI_API_KEY}"
+    try:
+        response = requests.get(url)
+        models = response.json().get('models', [])
+        print("🔍 Available Models for your API Key:")
+        for m in models:
+            print(f" - {m['name']}")
+        return [m['name'] for m in models]
+    except:
+        return []
+
+def generate_blog_content(product, available_model_names):
+    # 제미나이 3.0 및 최신 엔진을 위한 후보군
+    candidates = [
+        "models/gemini-2.0-flash",
+        "models/gemini-1.5-flash",
+        "models/gemini-pro"
     ]
     
+    # 실제 사용 가능한 모델이 있다면 후보군 맨 앞에 추가
+    if available_model_names:
+        # gemini-3 계열이 있다면 최우선 순위
+        g3_models = [m for m in available_model_names if 'gemini-3' in m.lower()]
+        candidates = g3_models + candidates
+
     headers = {'Content-Type': 'application/json'}
-    # 제미나이 3.0의 Thinking 능력을 자극하는 프롬프트
-    prompt_text = (f"Review this product using your Gemini 3.0 advanced reasoning: {product.get('product_title')}. "
-                   f"Price: ${product.get('target_sale_price')}. "
-                   f"Write a persuasive, SEO-friendly English review in Markdown.")
-    
+    prompt_text = (f"Review this product using your advanced reasoning: {product.get('product_title')}. "
+                   f"Price: ${product.get('target_sale_price')}. Write a professional review in Markdown.")
     payload = {"contents": [{"parts": [{"text": prompt_text}]}]}
     
-    for url in endpoints:
+    for model_name in candidates:
         try:
-            full_url = f"{url}?key={GEMINI_API_KEY}"
-            response = requests.post(full_url, headers=headers, json=payload, timeout=10)
+            url = f"https://generativelanguage.googleapis.com/v1beta/{model_name}:generateContent?key={GEMINI_API_KEY}"
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
             result = response.json()
             
             if "candidates" in result:
-                print(f"✅ Success using endpoint: {url}")
+                print(f"✅ Success using model: {model_name}")
                 return result["candidates"][0]["content"]["parts"][0]["text"]
             
-            print(f"ℹ️ Endpoint {url} skipped: {result.get('error', {}).get('message', 'Unknown error')}")
-        except Exception as e:
-            print(f"ℹ️ Connection to {url} failed: {e}")
+            print(f"ℹ️ Model {model_name} failed: {result.get('error', {}).get('message', 'Unknown error')}")
+        except:
             continue
             
     return None
 
 def main():
     os.makedirs("posts", exist_ok=True)
-    if not os.path.exists("posted_ids.txt"):
-        with open("posted_ids.txt", "w") as f: f.write("")
+    
+    # 1. 사용 가능한 모델 이름들 먼저 확인 (로그에 출력됨)
+    available_models = list_available_models()
 
+    # 2. 키워드 선택
     all_keywords = get_massive_keyword_list()
     target_keyword = random.choice(all_keywords)
     print(f"📚 Total Keywords: {len(all_keywords)} | 🎯 Target: {target_keyword}")
 
+    # 3. 상품 검색
     products = get_ali_products(target_keyword)
     if not products:
         print("❌ AliExpress No Products Found.")
         return
 
     selected_product = products[0]
-    print(f"📝 Writing Review with Gemini 3.0 Intelligence: {selected_product['product_title'][:40]}...")
-    content = generate_blog_content(selected_product)
+    print(f"📝 Writing Review: {selected_product['product_title'][:40]}...")
+    
+    # 4. 글 생성 (모델 리스트 전달)
+    content = generate_blog_content(selected_product, available_models)
     
     if content:
         today = datetime.now().strftime("%Y-%m-%d")
         file_path = f"posts/{today}-{selected_product.get('product_id')}.md"
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
-        with open("posted_ids.txt", "a") as f:
-            f.write(f"{selected_product.get('product_id')}\n")
         print(f"🎉 SUCCESS: {file_path} created!")
     else:
-        print("❌ Content generation failed across all endpoints.")
+        print("❌ Content generation failed across all models.")
 
 if __name__ == "__main__":
     main()
