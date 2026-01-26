@@ -7,103 +7,102 @@ import requests
 import json
 from datetime import datetime
 
-# [환경 변수 설정 - 사용자 정보 기반]
+# 1. 환경 변수 설정
 ALI_APP_KEY = os.environ.get("ALI_APP_KEY", "").strip()
 ALI_SECRET = os.environ.get("ALI_SECRET", "").strip()
 ALI_TRACKING_ID = os.environ.get("ALI_TRACKING_ID", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 
-def get_huge_keyword_pool():
-    # 💥 더 광범위한 검색을 위해 품목을 수백 개 단위로 확장 가능하도록 구성
-    base = ["Smart", "Mini", "Portable", "Wireless", "Home", "Office", "Car", "Outdoor", "Kitchen", "Tech"]
-    items = ["Gadget", "Tool", "Electronics", "Adapter", "Sensor", "Light", "Charger", "Fan", "Hub", "Case", "Stand", "Speaker", "Camera"]
-    return [f"{b} {i}" for b in base for i in items]
-
-def get_ali_products(keyword):
+def get_ali_products_by_category():
+    # 🎯 키워드 대신 알리익스프레스의 대형 카테고리 ID를 사용하여 상품을 확실히 가져옵니다.
+    # 502(가전), 44(자동차), 7(컴퓨터), 509(폰), 1501(베이비) 등
+    category_ids = ["502", "44", "7", "509", "1501", "1503", "18", "1511", "200003406"]
+    cat_id = random.choice(category_ids)
+    
     url = "https://api-sg.aliexpress.com/sync"
-    # 🎯 정렬 방식을 랜덤하게 섞어 매번 다른 상품이 상단에 나오게 유도
-    sort_methods = ["SALE_PRICE_ASC", "SALE_PRICE_DESC", "LAST_VOLUME_DESC", "VOLUME_DESC"]
     params = {
         "app_key": ALI_APP_KEY, "timestamp": str(int(time.time() * 1000)), "sign_method": "sha256",
-        "method": "aliexpress.affiliate.product.query", "keywords": keyword, "page_size": "50",
-        "sort": random.choice(sort_methods), # 👈 매번 다른 순서로 검색
-        "target_currency": "USD", "target_language": "EN", "tracking_id": ALI_TRACKING_ID
+        "method": "aliexpress.affiliate.product.query", "category_ids": cat_id, 
+        "page_size": "50", "target_currency": "USD", "target_language": "EN", "tracking_id": ALI_TRACKING_ID
     }
-    # [서명 생성 로직 동일]
+    # [서명 생성 로직]
     sorted_params = sorted(params.items())
     base_string = "".join([f"{k}{v}" for k, v in sorted_params])
     sign = hmac.new(ALI_SECRET.encode('utf-8'), base_string.encode('utf-8'), hashlib.sha256).hexdigest().upper()
     params["sign"] = sign
+    
     try:
-        response = requests.post(url, data=params, timeout=25)
-        return response.json().get("aliexpress_affiliate_product_query_response", {}).get("resp_result", {}).get("result", {}).get("products", {}).get("product", [])
-    except: return []
+        response = requests.post(url, data=params, timeout=20)
+        data = response.json()
+        products = data.get("aliexpress_affiliate_product_query_response", {}).get("resp_result", {}).get("result", {}).get("products", {}).get("product", [])
+        print(f"📡 Category {cat_id} Search: Found {len(products)} products.") # 👈 검색 결과 로그 추가
+        return products
+    except Exception as e:
+        print(f"📡 API Error: {e}")
+        return []
 
 def generate_blog_content(product):
-    # 🎯 제미나이 1.5 플래시 사용 (가장 빠르고 거절이 적음)
+    # 🎯 제미나이 1.5 플래시 사용
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     headers = {'Content-Type': 'application/json'}
-    prompt = f"Review this: {product.get('product_title')}. Price: ${product.get('target_sale_price')}. 5 sentences, Markdown."
+    prompt = f"Write a simple 3-sentence review for: {product.get('product_title')}. Price: ${product.get('target_sale_price')}. Markdown format."
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=40)
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
         res_json = response.json()
         if "candidates" in res_json:
             return res_json["candidates"][0]["content"]["parts"][0]["text"]
         
-        # 🚨 할당량 초과 시 '60초 휴식'을 '30초'로 줄여서 속도 향상 시도
-        if "quota" in str(res_json).lower():
-            print("   ⏳ Quota limit. Resting 30s...")
+        # 🚨 할당량 초과 시 30초 대기
+        if "429" in str(res_json) or "quota" in str(res_json).lower():
+            print("   ⏳ AI Quota hit. Waiting 30s...")
             time.sleep(30)
     except: pass
-    return None
+    return None # 실패 시 None 리턴
 
 def main():
     os.makedirs("_posts", exist_ok=True)
-    posted_ids = set()
-    if os.path.exists("posted_ids.txt"):
-        with open("posted_ids.txt", "r") as f:
-            posted_ids = set(line.strip() for line in f)
-
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    current_session_ids = set()
     success_count = 0
-    keywords = get_huge_keyword_pool()
-    random.shuffle(keywords)
+    
+    print(f"🚀 Mission Start: Target 40 Posts for {today_str}")
 
-    print(f"🚀 Mission Start: 40 Posts Target")
-
-    for kw in keywords:
-        if success_count >= 40: break
+    # 🎯 40개가 채워질 때까지 끝까지 반복합니다.
+    while success_count < 40:
+        products = get_ali_products_by_category()
         
-        print(f"🔄 Searching: {kw}...")
-        products = get_ali_products(kw)
-        
-        # 🎯 검색된 50개 상품 중 중복이 아닌 것을 "전부" 시도합니다.
+        if not products:
+            print("   ⚠️ No products found in this category. Retrying...")
+            time.sleep(5)
+            continue
+            
         for p in products:
             if success_count >= 40: break
-            p_id = str(p.get('product_id'))
             
-            # 🛑 이미 올린 상품만 아니면 무조건 진행!
-            if p_id in posted_ids: continue
+            p_id = str(p.get('product_id'))
+            if p_id in current_session_ids: continue
             
             content = generate_blog_content(p)
-            if content:
-                today = datetime.now().strftime("%Y-%m-%d")
-                img = p.get('product_main_image_url', '').replace('//', 'https://') if p.get('product_main_image_url') else ""
-                
-                with open(f"_posts/{today}-{p_id}.md", "w", encoding="utf-8") as f:
-                    f.write(f"---\nlayout: post\ntitle: \"{p['product_title']}\"\ndate: {today}\n---\n\n![Image]({img})\n\n{content}\n\n[🛒 Buy Link]({p.get('promotion_link')})")
-                
-                with open("posted_ids.txt", "a") as f: f.write(f"{p_id}\n")
-                posted_ids.add(p_id)
-                success_count += 1
-                print(f"   ✨ Created ({success_count}/40): {p_id}")
-                time.sleep(2) # ⚡ 딜레이 최소화
-            else:
-                # 생성 실패 시에도 다음 상품으로 즉시 이동하여 '고갈' 방지
-                continue
+            
+            # 🛡️ AI 생성 실패 시 '기본 텍스트'로라도 발행 (0개 방지 전략)
+            if not content:
+                print(f"   ⚠️ AI Review failed for {p_id}. Using fallback text.")
+                content = f"Check out this amazing product: {p.get('product_title')}. Great value for only ${p.get('target_sale_price')}!"
+            
+            img_url = p.get('product_main_image_url', '').replace('//', 'https://')
+            file_path = f"_posts/{today_str}-{p_id}.md"
+            
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(f"---\nlayout: post\ntitle: \"{p['product_title']}\"\ndate: {today_str}\n---\n\n![Image]({img_url})\n\n{content}\n\n[🛒 Buy on AliExpress]({p.get('promotion_link')})")
+            
+            current_session_ids.add(p_id)
+            success_count += 1
+            print(f"   ✅ SUCCESS ({success_count}/40): {p_id}")
+            time.sleep(2) # ⚡ 안정적인 처리를 위한 최소 대기
 
-    print(f"🏁 Mission Completed: {success_count} posts.")
+    print(f"🏁 Mission Completed: {success_count} posts created.")
 
 if __name__ == "__main__":
     main()
