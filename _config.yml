@@ -2,11 +2,21 @@ title: Ali-Must-Buy-Items
 description: Daily handpicked AliExpress deals by Gemini 3.0
 theme: minima
 
-# ⚠️ 이 부분이 가장 중요합니다!
+# ⚠️ GitHub Pages 하위 디렉토리 설정
 baseurl: "/ali-must-buy-items" 
 url: "https://rkskqdl-a11y.github.io"
+
+# 검색 엔진 최적화 플러그인
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
 
 collections:
   posts:
     output: true
     permalink: /:year/:month/:day/:title.html
+
+# 마크다운 해석 설정
+kramdown:
+  syntax_highlighter_opts:
+    disable: true
