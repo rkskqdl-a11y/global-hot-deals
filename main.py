@@ -7,9 +7,9 @@ import requests
 import json
 from datetime import datetime
 
-# 1. 환경 변수 설정
+# 1. 환경 변수 설정 (사용자 정보 기반)
 ALI_APP_KEY = os.environ.get("ALI_APP_KEY", "").strip()
-ALI_SECRET = os.environ.get("ALI_SECRET", "").strip() # YAML에서 매핑됨
+ALI_SECRET = os.environ.get("ALI_SECRET", "").strip()
 ALI_TRACKING_ID = os.environ.get("ALI_TRACKING_ID", "").strip()
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 SITE_URL = "https://rkskqdl-a11y.github.io/ali-must-buy-items"
@@ -58,63 +58,60 @@ def generate_blog_content(product):
     return None
 
 def update_seo_files():
-    """글 목록을 읽어 sitemap.xml과 robots.txt를 물리적으로 생성합니다."""
+    """Jekyll의 permalink 구조에 맞춰 사이트맵 생성"""
     posts = sorted([f for f in os.listdir("_posts") if f.endswith(".md")], reverse=True)
     now = datetime.now().strftime("%Y-%m-%d")
     
-    # Sitemap 생성
     sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     sitemap += f'  <url><loc>{SITE_URL}/</loc><lastmod>{now}</lastmod><priority>1.0</priority></url>\n'
+    
     for p in posts:
-        url_name = p.replace(".md", ".html")
-        sitemap += f'  <url><loc>{SITE_URL}/{url_name}</loc><lastmod>{now}</lastmod></url>\n'
+        # 파일명(2026-01-28-ID.md)을 주소 형식(/2026/01/28/ID.html)으로 변환
+        name_parts = p.replace(".md", "").split("-")
+        if len(name_parts) >= 4:
+            year, month, day = name_parts[0], name_parts[1], name_parts[2]
+            title_id = "-".join(name_parts[3:])
+            loc_url = f"{SITE_URL}/{year}/{month}/{day}/{title_id}.html"
+            sitemap += f'  <url><loc>{loc_url}</loc><lastmod>{now}</lastmod></url>\n'
+            
     sitemap += '</urlset>'
     with open("sitemap.xml", "w", encoding="utf-8") as f: f.write(sitemap)
-    
-    # Robots.txt 생성
-    robots = f"User-agent: *\nAllow: /\nSitemap: {SITE_URL}/sitemap.xml"
-    with open("robots.txt", "w", encoding="utf-8") as f: f.write(robots)
+    with open("robots.txt", "w", encoding="utf-8") as f:
+        f.write(f"User-agent: *\nAllow: /\nSitemap: {SITE_URL}/sitemap.xml")
 
 def main():
     os.makedirs("_posts", exist_ok=True)
     today_str = datetime.now().strftime("%Y-%m-%d")
     posted_ids = load_posted_ids()
     success_count = 0
-    max_posts = 10 # 한 번 실행 시 10개 발행
-    
-    disclosure = "> **Affiliate Disclosure:** As an AliExpress Associate, I earn from qualifying purchases. This post contains affiliate links.\n\n"
-
-    print(f"🚀 Mission Start: {max_posts} Posts for {today_str}")
+    max_posts = 10 
+    disclosure = "> **Affiliate Disclosure:** As an AliExpress Associate, I earn from qualifying purchases.\n\n"
 
     while success_count < max_posts:
         products = get_ali_products()
-        if not products: 
-            time.sleep(10)
-            continue
+        if not products: continue
             
         for p in products:
             if success_count >= max_posts: break
             p_id = str(p.get('product_id'))
             if p_id in posted_ids: continue
             
-            # 이미지 주소 클리닝
             img_url = p.get('product_main_image_url', '').strip()
             if img_url.startswith('//'): img_url = 'https:' + img_url
             img_url = img_url.split('?')[0]
 
             content = generate_blog_content(p)
             
-            # 본문 표 형식 보정 (삼중 따옴표 사용)
+            # ✅ [표 깨짐 방지] 앞뒤로 빈 줄(\n\n)을 추가합니다.
             if not content:
-                content = f"""
-### Product Specifications
-
-| Property | Detail |
-| :--- | :--- |
-| **Item** | {p.get('product_title')} |
-| **Price** | ${p.get('target_sale_price')} |
-| **Status** | Highly Recommended |
-"""
+                content = (
+                    "\n\n### Product Specifications\n\n"
+                    "| Attribute | Detail |\n"
+                    "| :--- | :--- |\n"
+                    f"| **Item** | {p.get('product_title')} |\n"
+                    f"| **Price** | ${p.get('target_sale_price')} |\n"
+                    "| **Status** | Highly Recommended |\n\n"
+                )
 
             file_path = f"_posts/{today_str}-{p_id}.md"
             with open(file_path, "w", encoding="utf-8") as f:
@@ -130,8 +127,7 @@ def main():
             print(f"   ✅ SUCCESS ({success_count}/{max_posts}): {p_id}")
             time.sleep(6)
 
-    update_seo_files() # SEO 파일 갱신
-    print(f"🏁 Mission Completed & SEO Files Updated!")
+    update_seo_files()
 
 if __name__ == "__main__":
     main()
