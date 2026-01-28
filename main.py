@@ -40,7 +40,6 @@ def get_ali_products():
     params["sign"] = sign
     try:
         response = requests.post(url, data=params, timeout=20)
-        # ✅ 제품 리스트 경로 수정
         return response.json().get("aliexpress_affiliate_product_query_response", {}).get("resp_result", {}).get("result", {}).get("products", {}).get("product", [])
     except: return []
 
@@ -52,7 +51,6 @@ def generate_blog_content(product):
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=40)
         res_json = response.json()
-        # ✅ Gemini JSON 응답 경로 수정
         if "candidates" in res_json:
             return res_json["candidates"][0]["content"]["parts"][0]["text"]
         if "quota" in str(res_json).lower() or "429" in str(res_json):
@@ -66,9 +64,9 @@ def main():
     today_str = datetime.now().strftime("%Y-%m-%d")
     posted_ids = load_posted_ids()
     success_count = 0
-    max_posts = 40 
+    # ✅ 요청하신 대로 한 번 실행 시 10개로 변경
+    max_posts = 10 
     
-    # ✅ 영문 고지 문구
     disclosure = "> **Affiliate Disclosure:** As an AliExpress Associate, I earn from qualifying purchases. This post contains affiliate links.\n\n"
 
     print(f"🚀 Mission: {max_posts} Posts Start")
@@ -85,32 +83,31 @@ def main():
             p_id = str(p.get('product_id'))
             if p_id in posted_ids: continue
             
-            # ✅ 이미지 URL 문자열 처리 수정
             img_url = p.get('product_main_image_url', '').strip()
             if img_url.startswith('//'): img_url = 'https:' + img_url
-            img_url = img_url.split('?')[0] # [0] 인덱스 추가
+            img_url = img_url.split('?')[0] 
 
             content = generate_blog_content(p)
             
             # ✅ 본문 표 형식(Box) 보장
             if not content:
-                content = (
-                    f"### Product Specifications\n\n"
-                    f"| Attribute | Detail |\n"
-                    f"| :--- | :--- |\n"
-                    f"| **Item** | {p.get('product_title')} |\n"
-                    f"| **Price** | ${p.get('target_sale_price')} |\n"
-                    f"| **Status** | Highly Recommended |\n"
-                )
+                content = f"""
+### Product Specifications
+
+| Attribute | Detail |
+| :--- | :--- |
+| **Item** | {p.get('product_title')} |
+| **Price** | ${p.get('target_sale_price')} |
+| **Status** | Highly Recommended |
+"""
 
             file_path = f"_posts/{today_str}-{p_id}.md"
             with open(file_path, "w", encoding="utf-8") as f:
-                # ✅ 제목은 깔끔하게 텍스트로
                 f.write(f"---\nlayout: post\ntitle: \"{p['product_title']}\"\ndate: {today_str}\n---\n\n"
                         f"{disclosure}"
                         f"<img src=\"{img_url}\" alt=\"{p['product_title']}\" referrerpolicy=\"no-referrer\" style=\"width:100%; max-width:600px; display:block; margin:20px 0;\">\n\n"
                         f"{content}\n\n"
-                        f"### [🛒 Shop Now on AliExpress]({p.get('promotion_link')})") # ✅ 링크 형식 수정
+                        f"### [🛒 Shop Now on AliExpress]({p.get('promotion_link')})")
             
             save_posted_id(p_id)
             posted_ids.add(p_id)
