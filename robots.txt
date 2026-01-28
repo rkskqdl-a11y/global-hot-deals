@@ -1,4 +1,3 @@
 User-agent: *
 Allow: /
-
 Sitemap: https://rkskqdl-a11y.github.io/ali-must-buy-items/sitemap.xml
