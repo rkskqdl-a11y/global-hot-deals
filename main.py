@@ -28,30 +28,19 @@ def save_posted_id(p_id):
 
 def get_ali_products():
     """다양한 카테고리를 랜덤하게 선택하여 모든 상품군을 커버합니다."""
-    # ✅ 알리익스프레스 주요 카테고리 ID 전체 목록 확장
-    # 3:의류, 1501:가정/정원, 34:자동차, 66:뷰티, 7:컴퓨터, 44:가전, 1503:가구, 
-    # 26:완구/취미, 1524:시계, 200000532:스포츠, 15:반려동물/공구, 2:유아용품
-    cat_ids = [
-        "3", "1501", "34", "66", "7", "44", "502", "1503", "1511", "18", 
-        "509", "200000343", "200000345", "200000532", "26", "15", "2", "1524", "21", "13"
-    ]
+    cat_ids = ["3", "1501", "34", "66", "7", "44", "502", "1503", "1511", "18", "509", "26", "15", "2", "1524"]
     cat_id = random.choice(cat_ids)
-    
     url = "https://api-sg.aliexpress.com/sync"
     params = {
         "app_key": ALI_APP_KEY, "timestamp": str(int(time.time() * 1000)), "sign_method": "sha256",
         "method": "aliexpress.affiliate.product.query", "category_ids": cat_id, 
         "page_size": "50", "target_currency": "USD", "target_language": "EN", "tracking_id": ALI_TRACKING_ID
     }
-    # 정렬 방식을 랜덤화하여 상품의 다양성 극대화 (VOLUME_DESC, SALE_PRICE_ASC 등 랜덤 선택 가능)
-    sort_options = ["VOLUME_DESC", "SALE_PRICE_ASC", "SALE_PRICE_DESC", "LAST_VOLUME_ASC"]
-    params["sort"] = random.choice(sort_options)
-
+    params["sort"] = random.choice(["VOLUME_DESC", "SALE_PRICE_ASC", "SALE_PRICE_DESC"])
     sorted_params = sorted(params.items())
     base_string = "".join([f"{k}{v}" for k, v in sorted_params])
     sign = hmac.new(ALI_SECRET.encode('utf-8'), base_string.encode('utf-8'), hashlib.sha256).hexdigest().upper()
     params["sign"] = sign
-    
     try:
         response = requests.post(url, data=params, timeout=20)
         return response.json().get("aliexpress_affiliate_product_query_response", {}).get("resp_result", {}).get("result", {}).get("products", {}).get("product", [])
@@ -68,16 +57,19 @@ def generate_blog_content(product):
         if "candidates" in res_json:
             return res_json["candidates"][0]["content"]["parts"][0]["text"]
         if "quota" in str(res_json).lower() or "429" in str(res_json):
-            print("   ⏳ API Quota limit. Resting 70s...")
             time.sleep(70)
     except: pass
     return None
 
 def update_seo_files():
+    """XML 선언문의 공백 에러를 방지하고 사이트맵을 갱신합니다."""
     posts = sorted([f for f in os.listdir("_posts") if f.endswith(".md")], reverse=True)
     now = datetime.now().strftime("%Y-%m-%d")
+    
+    # ✅ 중요: XML 선언문 앞에 절대 공백이 없도록 첫 줄부터 바로 시작합니다.
     sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     sitemap += f'  <url><loc>{SITE_URL}/</loc><lastmod>{now}</lastmod><priority>1.0</priority></url>\n'
+    
     for p in posts:
         name_parts = p.replace(".md", "").split("-")
         if len(name_parts) >= 4:
@@ -85,10 +77,17 @@ def update_seo_files():
             title_id = "-".join(name_parts[3:])
             loc_url = f"{SITE_URL}/{year}/{month}/{day}/{title_id}.html"
             sitemap += f'  <url><loc>{loc_url}</loc><lastmod>{now}</lastmod></url>\n'
+            
     sitemap += '</urlset>'
-    with open("sitemap.xml", "w", encoding="utf-8") as f: f.write(sitemap)
+    
+    # ✅ sitemap.xml 저장 (불필요한 공백 제거)
+    with open("sitemap.xml", "w", encoding="utf-8") as f:
+        f.write(sitemap.strip())
+    
+    # ✅ robots.txt 저장 (Sitemap 경로를 구글이 인지하기 쉽게 절대경로로 기입)
+    robots = f"User-agent: *\nAllow: /\n\nSitemap: {SITE_URL}/sitemap.xml"
     with open("robots.txt", "w", encoding="utf-8") as f:
-        f.write(f"User-agent: *\nAllow: /\nSitemap: {SITE_URL}/sitemap.xml")
+        f.write(robots)
 
 def main():
     os.makedirs("_posts", exist_ok=True)
