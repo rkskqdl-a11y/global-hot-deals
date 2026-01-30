@@ -1,9 +1,11 @@
 ---
 layout: default
 title: Home
+last_updated: "2026-01-30 07:16:43"
 ---
 
-# Latest AliExpress Deals
+# AliExpress Daily Must-Buy Items
+*Last Updated: 2026-01-30 07:16:43 (KST)*
 
 <ul>
   {% for post in site.posts %}
