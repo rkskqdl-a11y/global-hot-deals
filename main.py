@@ -27,6 +27,7 @@ def save_posted_id(p_id):
         f.write(f"{p_id}\n")
 
 def get_ali_products():
+    """다양한 카테고리를 랜덤하게 선택합니다."""
     cat_ids = ["3", "1501", "34", "66", "7", "44", "502", "1503", "1511", "18", "509", "26", "15", "2", "1524"]
     cat_id = random.choice(cat_ids)
     url = "https://api-sg.aliexpress.com/sync"
@@ -59,15 +60,15 @@ def generate_blog_content(product):
     return None
 
 def update_seo_files():
-    """사이트맵 XML 선언 오류와 네임스페이스 경고를 해결합니다."""
+    """Sitemap.xml과 Robots.txt를 확실하게 업데이트합니다."""
+    print("🛠️ Starting SEO files update...")
     posts = sorted([f for f in os.listdir("_posts") if f.endswith(".md")], reverse=True)
     now = datetime.now().strftime("%Y-%m-%d")
     
-    # ✅ 1. XML 선언문: 파일의 절대적인 첫 시작이어야 함
-    # ✅ 2. xmlns: 큰따옴표("")를 사용하여 표준 규격 준수
-    sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n'
-    sitemap += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-    sitemap += f'  <url><loc>{SITE_URL}/</loc><lastmod>{now}</lastmod><priority>1.0</priority></url>\n'
+    # 1. Sitemap.xml 생성 (XML 규격 엄격 준수)
+    sitemap_content = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    sitemap_content += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    sitemap_content += f'  <url><loc>{SITE_URL}/</loc><lastmod>{now}</lastmod><priority>1.0</priority></url>\n'
     
     for p in posts:
         name_parts = p.replace(".md", "").split("-")
@@ -75,18 +76,25 @@ def update_seo_files():
             year, month, day = name_parts[0], name_parts[1], name_parts[2]
             title_id = "-".join(name_parts[3:])
             loc_url = f"{SITE_URL}/{year}/{month}/{day}/{title_id}.html"
-            sitemap += f'  <url><loc>{loc_url}</loc><lastmod>{now}</lastmod></url>\n'
+            sitemap_content += f'  <url><loc>{loc_url}</loc><lastmod>{now}</lastmod></url>\n'
             
-    sitemap += '</urlset>'
+    sitemap_content += '</urlset>'
     
-    # sitemap.xml 저장 (앞뒤 불필요한 공백 완전 제거)
     with open("sitemap.xml", "w", encoding="utf-8") as f:
-        f.write(sitemap.strip())
+        f.write(sitemap_content.strip())
+    print("   ✅ sitemap.xml updated.")
+
+    # 2. robots.txt 생성 (덮어쓰기 보장)
+    robots_content = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "\n"
+        f"Sitemap: {SITE_URL}/sitemap.xml"
+    )
     
-    # robots.txt 저장 (Sitemap 경로를 구글이 인지하기 쉽게 절대경로로 기입)
-    robots = f"User-agent: *\nAllow: /\n\nSitemap: {SITE_URL}/sitemap.xml"
     with open("robots.txt", "w", encoding="utf-8") as f:
-        f.write(robots)
+        f.write(robots_content.strip())
+    print("   ✅ robots.txt updated.")
 
 def main():
     os.makedirs("_posts", exist_ok=True)
@@ -138,8 +146,9 @@ def main():
             print(f"   ✅ SUCCESS ({success_count}/{max_posts}): {p_id}")
             time.sleep(6)
 
+    # ✅ 모든 포스팅 완료 후 호출됨을 보장
     update_seo_files()
-    print(f"🏁 Mission Completed & SEO Files Updated!")
+    print(f"🏁 Mission Completed!")
 
 if __name__ == "__main__":
     main()
