@@ -27,7 +27,7 @@ def save_posted_id(p_id):
         f.write(f"{p_id}\n")
 
 def get_ali_products():
-    """랜덤 카테고리에서 상품을 수집합니다."""
+    """랜덤 카테고리 상품 수집"""
     cat_ids = ["3", "1501", "34", "66", "7", "44", "502", "1503", "1511", "18", "509", "26", "15", "2", "1524"]
     cat_id = random.choice(cat_ids)
     url = "https://api-sg.aliexpress.com/sync"
@@ -60,14 +60,14 @@ def generate_blog_content(product):
     return None
 
 def update_seo_files():
-    """모든 SEO 파일과 메인 index.md를 강제 갱신합니다."""
-    print("🛠️ Starting SEO & Index update...")
+    """Sitemap, Robots, Index 파일을 강제 갱신합니다."""
+    print("🛠️ Starting SEO & Index files update...")
     posts = sorted([f for f in os.listdir("_posts") if f.endswith(".md")], reverse=True)
     now_dt = datetime.now()
     now_str = now_dt.strftime("%Y-%m-%d")
     now_full = now_dt.strftime("%Y-%m-%d %H:%M:%S")
     
-    # 1. Sitemap.xml 생성 (XML 규격 준수)
+    # 1. Sitemap.xml 생성 (XML 규격 준수 및 공백 제거)
     sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n'
     sitemap += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     sitemap += f'  <url><loc>{SITE_URL}/</loc><lastmod>{now_str}</lastmod><priority>1.0</priority></url>\n'
@@ -81,12 +81,16 @@ def update_seo_files():
     sitemap += '</urlset>'
     with open("sitemap.xml", "w", encoding="utf-8") as f: f.write(sitemap.strip())
 
-    # 2. robots.txt 생성
-    robots = f"User-agent: *\nAllow: /\n\nSitemap: {SITE_URL}/sitemap.xml"
-    with open("robots.txt", "w", encoding="utf-8") as f: f.write(robots.strip())
+    # 2. robots.txt 생성 (시간 주석을 넣어 강제 업데이트 유도)
+    robots_content = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        f"# Last Updated: {now_full}\n"  # 이 줄이 매번 바뀌어 깃허브가 인지합니다.
+        f"Sitemap: {SITE_URL}/sitemap.xml"
+    )
+    with open("robots.txt", "w", encoding="utf-8") as f: f.write(robots_content.strip())
 
-    # 3. index.md 강제 업데이트 (타임스탬프 삽입)
-    # 메인 페이지 목록이 꼬이지 않도록 Liquid 태그를 유지하며 날짜만 갱신합니다.
+    # 3. index.md 생성 (메인 페이지 목록 갱신)
     index_content = f"""---
 layout: default
 title: Home
@@ -105,7 +109,7 @@ last_updated: "{now_full}"
 </ul>
 """
     with open("index.md", "w", encoding="utf-8") as f: f.write(index_content.strip())
-    print(f"   ✅ SEO files and index.md updated at {now_full}")
+    print(f"   ✅ All SEO files and index.md updated at {now_full}")
 
 def main():
     os.makedirs("_posts", exist_ok=True)
@@ -157,6 +161,7 @@ def main():
             print(f"   ✅ SUCCESS ({success_count}/{max_posts}): {p_id}")
             time.sleep(6)
 
+    # 모든 파일 갱신 보장
     update_seo_files()
     print(f"🏁 Mission Completed!")
 
