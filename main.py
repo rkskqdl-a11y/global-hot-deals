@@ -27,7 +27,7 @@ def save_posted_id(p_id):
         f.write(f"{p_id}\n")
 
 def get_ali_products():
-    """랜덤 카테고리 상품 수집"""
+    """다양한 카테고리에서 상품을 수집합니다."""
     cat_ids = ["3", "1501", "34", "66", "7", "44", "502", "1503", "1511", "18", "509", "26", "15", "2", "1524"]
     cat_id = random.choice(cat_ids)
     url = "https://api-sg.aliexpress.com/sync"
@@ -60,14 +60,14 @@ def generate_blog_content(product):
     return None
 
 def update_seo_files():
-    """Sitemap, Robots, Index 파일을 강제 갱신합니다."""
-    print("🛠️ Starting SEO & Index files update...")
+    """네임스페이스 오류와 인덱스 갱신 문제를 해결합니다."""
+    print("🛠️ Updating SEO files with clean XML namespace...")
     posts = sorted([f for f in os.listdir("_posts") if f.endswith(".md")], reverse=True)
     now_dt = datetime.now()
     now_str = now_dt.strftime("%Y-%m-%d")
     now_full = now_dt.strftime("%Y-%m-%d %H:%M:%S")
     
-    # 1. Sitemap.xml 생성 (XML 규격 준수 및 공백 제거)
+    # ✅ 1. Sitemap.xml: 모든 공백을 일반 스페이스(Space)로 작성합니다.
     sitemap = '<?xml version="1.0" encoding="UTF-8"?>\n'
     sitemap += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
     sitemap += f'  <url><loc>{SITE_URL}/</loc><lastmod>{now_str}</lastmod><priority>1.0</priority></url>\n'
@@ -79,37 +79,31 @@ def update_seo_files():
             loc_url = f"{SITE_URL}/{year}/{month}/{day}/{title_id}.html"
             sitemap += f'  <url><loc>{loc_url}</loc><lastmod>{now_str}</lastmod></url>\n'
     sitemap += '</urlset>'
-    with open("sitemap.xml", "w", encoding="utf-8") as f: f.write(sitemap.strip())
+    
+    # 저장 시 투명한 특수 공백(\xa0)을 일반 공백으로 강제 치환
+    with open("sitemap.xml", "w", encoding="utf-8") as f:
+        f.write(sitemap.replace('\xa0', ' ').strip())
 
-    # 2. robots.txt 생성 (시간 주석을 넣어 강제 업데이트 유도)
-    robots_content = (
-        "User-agent: *\n"
-        "Allow: /\n"
-        f"# Last Updated: {now_full}\n"  # 이 줄이 매번 바뀌어 깃허브가 인지합니다.
-        f"Sitemap: {SITE_URL}/sitemap.xml"
-    )
-    with open("robots.txt", "w", encoding="utf-8") as f: f.write(robots_content.strip())
+    # 2. robots.txt 갱신
+    robots = f"User-agent: *\nAllow: /\n# Updated: {now_full}\nSitemap: {SITE_URL}/sitemap.xml"
+    with open("robots.txt", "w", encoding="utf-8") as f:
+        f.write(robots.replace('\xa0', ' ').strip())
 
-    # 3. index.md 생성 (메인 페이지 목록 갱신)
+    # 3. index.md 갱신
     index_content = f"""---
 layout: default
 title: Home
 last_updated: "{now_full}"
 ---
-
 # AliExpress Daily Must-Buy Items
 *Last Updated: {now_full} (KST)*
-
 <ul>
   {{% for post in site.posts %}}
-    <li>
-      <a href="{{{{ post.url | relative_url }}}}">{{{{ post.date | date: "%Y-%m-%d" }}}} - {{{{ post.title }}}}</a>
-    </li>
+    <li><a href="{{{{ post.url | relative_url }}}}">{{{{ post.date | date: "%Y-%m-%d" }}}} - {{{{ post.title }}}}</a></li>
   {{% endfor %}}
-</ul>
-"""
-    with open("index.md", "w", encoding="utf-8") as f: f.write(index_content.strip())
-    print(f"   ✅ All SEO files and index.md updated at {now_full}")
+</ul>"""
+    with open("index.md", "w", encoding="utf-8") as f:
+        f.write(index_content.strip())
 
 def main():
     os.makedirs("_posts", exist_ok=True)
@@ -118,8 +112,6 @@ def main():
     success_count = 0
     max_posts = 10 
     disclosure = "> **Affiliate Disclosure:** As an AliExpress Associate, I earn from qualifying purchases.\n\n"
-
-    print(f"🚀 Mission Start: {max_posts} Posts for {today_str}")
 
     while success_count < max_posts:
         products = get_ali_products()
@@ -161,7 +153,6 @@ def main():
             print(f"   ✅ SUCCESS ({success_count}/{max_posts}): {p_id}")
             time.sleep(6)
 
-    # 모든 파일 갱신 보장
     update_seo_files()
     print(f"🏁 Mission Completed!")
 
